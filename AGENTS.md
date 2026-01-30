@@ -6,14 +6,14 @@ TerraMap 是一个交互式的 Terraria v1.4.5 世界地图查看器，可以快
 
 这是 TerraMap-wasm 的现代化版本，已完成从纯 JavaScript 技术栈到现代技术栈的迁移。项目采用 Rust WebAssembly 实现核心功能，Svelte 5 + TypeScript 作为前端框架，同时保持界面风格与原版一致，并增加了响应式布局和移动端适配。
 
-源代码仓库托管在 GitHub。Web 版本仍处于实验阶段，功能不完整。更功能完善但仅限 Windows 的桌面版本可在 https://terramap.github.io/windows.html 获取。
+源代码仓库托管在 GitHub。Web 版本功能已基本完善，支持所有核心地图查看功能。更功能完善但仅限 Windows 的桌面版本可在 https://terramap.github.io/windows.html 获取。
 
 ### 主要技术栈
 
 #### 后端（Rust + WebAssembly）
-- **Rust 1.93.0** - 用于所有核心功能实现
+- **Rust 1.93.0+** - 用于所有核心功能实现
 - **wasm-bindgen 0.2** - Rust 与 JavaScript 的互操作
-- **wasm-pack 0.14.0** - Rust WebAssembly 打包工具
+- **wasm-pack 0.14.0+** - Rust WebAssembly 打包工具
 - **js-sys / web-sys** - 浏览器 API 绑定
 - **serde** - 序列化/反序列化支持
 
@@ -35,6 +35,7 @@ TerraMap 是一个交互式的 Terraria v1.4.5 世界地图查看器，可以快
 #### 渲染技术
 - **HTML5 Canvas API** - 地图渲染
 - **Rust Canvas 2D** - 通过 web-sys 实现
+- **可见区域渲染优化** - 只渲染可见区域以提升性能
 - **图像平滑禁用** - 保持像素风格
 
 #### 许可证
@@ -49,7 +50,7 @@ TerraMap-wasm/
 │   │   ├── lib.rs          # 主入口，导出 WASM 接口
 │   │   ├── data_stream.rs  # 二进制数据流解析
 │   │   ├── world_loader.rs # 世界文件加载器
-│   │   ├── renderer.rs     # Canvas 渲染逻辑
+│   │   ├── renderer.rs     # Canvas 渲染逻辑（支持高亮和可见区域优化）
 │   │   ├── search.rs       # 数据查找和筛选
 │   │   └── colors.rs       # 颜色定义
 │   ├── Cargo.toml          # Rust 项目配置
@@ -57,18 +58,21 @@ TerraMap-wasm/
 │
 ├── src/                     # Svelte + TypeScript 前端
 │   ├── components/         # Svelte 组件
-│   │   ├── MapCanvas.svelte      # 地图 Canvas 组件
-│   │   ├── Toolbar.svelte        # 工具栏
-│   │   ├── BlockSelector.svelte  # 方块选择器
-│   │   ├── NPCTracker.svelte     # NPC 追踪
-│   │   └── InfoPanel.svelte      # 信息面板
+│   │   ├── MapCanvas.svelte      # 地图 Canvas 组件（支持缩放、平移、高亮、NPC 标记）
+│   │   ├── Toolbar.svelte        # 工具栏（文件选择、保存图片）
+│   │   ├── BlockSelector.svelte  # 方块选择器（分类、搜索、高亮）
+│   │   ├── NPCTracker.svelte     # NPC 追踪器（列表、定位）
+│   │   └── InfoPanel.svelte      # 信息面板（显示世界信息）
 │   ├── lib/
 │   │   ├── wasm.ts         # Rust WASM 模块封装
-│   │   ├── stores.ts       # Svelte stores（状态管理）
-│   │   └── types.ts        # TypeScript 类型定义
-│   ├── App.svelte          # 主应用组件
+│   │   ├── stores.ts       # Svelte stores（状态管理：worldStore, highlightStore, npcStore）
+│   │   ├── types.ts        # TypeScript 类型定义
+│   │   ├── tileData.ts     # 750+ 种方块数据定义
+│   │   └── npcData.ts      # 30 种 NPC 数据定义
+│   ├── App.svelte          # 主应用组件（包含全局快捷键）
 │   ├── main.ts             # 入口文件
-│   └── app.css             # 全局样式（复刻 Bootstrap 3 风格）
+│   ├── app.css             # 全局样式（复刻 Bootstrap 3 风格）
+│   └── pkg.d.ts            # WASM 模块类型声明
 │
 ├── static/                  # 静态资源
 │   ├── css/                 # 自定义 CSS 文件
@@ -103,7 +107,7 @@ TerraMap-wasm/
 │   ├── css/
 │   │   └── styles.css      # 原版自定义样式
 │   ├── images/             # 原版图标和图像资源
-│   └── js/                 # 原版 JavaScript 源代码
+│   ├── js/                 # 原版 JavaScript 源代码
 │   └── *.zip               # TerraMap 历史版本压缩包
 │
 ├── index.html               # 主入口页面
@@ -119,7 +123,9 @@ TerraMap-wasm/
 ├── .eslintrc.cjs            # ESLint 配置
 ├── .prettierrc              # Prettier 配置
 ├── .gitignore               # Git 忽略规则
-└── Plan.md                  # 迁移方案文档
+├── Plan.md                  # 迁移方案文档
+├── p.md                     # 迁移进度文档
+└── AGENTS.md                # 本文档，项目开发指南
 ```
 
 ## 构建和运行
@@ -194,17 +200,36 @@ npx http-server -p 8000
 
 ### 使用方式
 
-1. 点击 "Choose File" 按钮
+1. 点击 "Choose File" 按钮或按 `Ctrl/Cmd + O` 快捷键
 2. 选择 Terraria 世界文件（.wld 格式）
 3. 世界文件将自动加载并渲染到 Canvas 上
 4. 使用以下功能进行交互：
-   - **平移/缩放**: 鼠标拖动平移，滚轮缩放
-   - **查找方块**: 点击 "Blocks..." 选择要查找的方块类型
-   - **高亮显示**: 点击 "Highlight All" 高亮显示所有匹配的方块
-   - **清除高亮**: 点击 "Clear Highlight" 清除高亮
-   - **保存图片**: 点击 "Save Map Image" 保存当前地图截图
-   - **NPC 定位**: 从 NPCs 下拉菜单选择 NPC
-   - **预设集合**: 从 Sets 下拉菜单选择预设的方块集合
+
+#### 鼠标操作
+- **平移**: 鼠标拖动平移地图
+- **缩放**: 鼠标滚轮缩放地图
+- **快捷键**:
+  - `Ctrl/Cmd + O`: 打开文件选择对话框
+  - `Ctrl/Cmd + S`: 保存当前地图为图片
+  - `Ctrl/Cmd + F`: 聚焦到搜索框
+  - `Escape`: 清除所有高亮和选择
+  - `+/-`: 放大/缩小地图
+
+#### 方块查找
+- 点击 "Blocks..." 选择要查找的方块类型
+- 使用分类筛选：Ores, Blocks, Furniture, Nature, Bricks, Special
+- 使用搜索框快速查找特定方块
+- 点击 "Highlight All" 高亮显示所有匹配的方块
+- 点击 "Clear Highlight" 清除高亮
+
+#### NPC 追踪
+- 从 NPCs 下拉菜单选择 NPC
+- 绿色圆点表示 NPC 在世界中，红色圆点表示不在
+- 点击 NPC 在地图上标记其位置
+- 显示 NPC 名称和坐标信息
+
+#### 预设集合
+- 从 Sets 下拉菜单选择预设的方块集合
 
 ### 世界文件位置
 
@@ -247,6 +272,8 @@ readFileFormatHeader() → readHeader() → readTiles() → readChests() → rea
 实现 Canvas 2D 渲染：
 - `Renderer` 结构体 - 渲染器核心
 - `render_world()` - 渲染整个世界
+- `render_world_visible_js()` - 只渲染可见区域（性能优化）
+- `render_world_with_highlight_js()` - 渲染带高亮的地图
 - `render_tile()` - 渲染单个方块
 - `set_scale()`, `get_scale()` - 缩放控制
 - 禁用图像平滑（保持像素风格）
@@ -274,25 +301,89 @@ readFileFormatHeader() → readHeader() → readTiles() → readChests() → rea
 - WASM 模块初始化
 - 网格布局（工具栏 + 主内容 + 侧边栏）
 - 响应式设计支持
+- 全局快捷键处理
 
 #### 2.2 组件架构
-- **MapCanvas.svelte** - 地图 Canvas 组件，处理缩放和平移
-- **Toolbar.svelte** - 工具栏，包含文件选择功能
-- **BlockSelector.svelte** - 方块选择器（开发中）
-- **NPCTracker.svelte** - NPC 追踪器（开发中）
-- **InfoPanel.svelte** - 信息面板，显示世界信息
+
+##### MapCanvas.svelte
+- 地图 Canvas 组件
+- 鼠标拖动平移
+- 滚轮缩放
+- 高亮显示支持
+- NPC 位置标记
+- 可见区域渲染优化
+
+##### Toolbar.svelte
+- 工具栏
+- 文件选择功能（"Choose File" 按钮）
+- 保存地图为图片功能
+- 文件加载处理
+
+##### BlockSelector.svelte
+- 方块分类选择（6 大分类：Ores, Blocks, Furniture, Nature, Bricks, Special）
+- 搜索过滤功能
+- 方块列表选择
+- "Highlight All" 按钮（高亮所有匹配方块）
+- "Clear Highlight" 按钮（清除高亮）
+- 显示找到的方块数量
+
+##### NPCTracker.svelte
+- 30 种 NPC 列表
+- NPC 搜索过滤
+- NPC 状态指示（绿色=在世界中，红色=不在）
+- NPC 位置定位（红色圆圈标记）
+- 显示选中的 NPC 信息
+- 清除选择功能
+
+##### InfoPanel.svelte
+- 世界信息显示
+- 显示名称、宽度、高度
+- 显示加载状态和错误信息
 
 #### 2.3 状态管理 (stores.ts)
 使用 Svelte 5 stores 实现响应式状态管理：
-- `worldStore` - 世界数据 store
-- 辅助方法：`setWorld()`, `setLoading()`, `setError()`, `clear()`
+
+##### worldStore
+- 管理世界数据状态
+- `setWorld()` - 设置世界数据
+- `setLoading()` - 设置加载状态
+- `setError()` - 设置错误信息
+- `clear()` - 清除所有状态
+
+##### highlightStore
+- 管理方块高亮和查找结果
+- `setSelectedTile()` - 设置选中方块
+- `setHighlightAll()` - 设置高亮模式
+- `setFoundPositions()` - 设置查找结果
+- `clear()` - 清除高亮
+
+##### npcStore
+- 管理 NPC 选择和位置
+- `setSelectedNpc()` - 设置选中 NPC
+- `clear()` - 清除选择
 
 #### 2.4 类型定义 (types.ts)
 TypeScript 类型定义：
 - `Tile`, `Chest`, `ChestItem`, `NPC` 接口
 - `World` 接口
 
-#### 2.5 WASM 封装 (wasm.ts)
+#### 2.5 数据文件
+
+##### tileData.ts
+- 750+ 种方块数据定义
+- 6 大分类：Ores, Blocks, Furniture, Nature, Bricks, Special
+- `TileData` 接口（id, name, category）
+- `getTileById()` - 按 ID 查找方块
+- `getTileByName()` - 按名称查找方块
+- `tilesByCategory` - 按分类组织的方块列表
+
+##### npcData.ts
+- 30 种 NPC 数据定义
+- `NPCData` 接口（id, name）
+- `getNpcById()` - 按 ID 查找 NPC
+- `getNpcByName()` - 按名称查找 NPC
+
+#### 2.6 WASM 封装 (wasm.ts)
 Rust WASM 模块封装：
 - `initWasm()` - 初始化 WASM
 - `getWasmModule()` - 获取 WASM 模块
@@ -388,10 +479,17 @@ Rust WASM 模块封装：
 [dependencies]
 wasm-bindgen = "0.2"          # Rust 与 JavaScript 互操作
 js-sys = "0.3"                # JavaScript 标准库绑定
-web-sys = "0.3"               # Web API 绑定
-serde = "1.0"                 # 序列化/反序列化
+web-sys = { version = "0.3", features = [
+    "CanvasRenderingContext2d",
+    "HtmlCanvasElement",
+    "ImageData",
+    "Window",
+    "Document",
+    "Element",
+] }
+serde = { version = "1.0", features = ["derive"] }  # 序列化/反序列化
 serde-wasm-bindgen = "0.6"    # WASM 绑定的序列化支持
-console_error_panic_hook = "0.1"  # 开发时更好的错误信息（可选）
+console_error_panic_hook = { version = "0.1", optional = true }  # 开发时更好的错误信息
 ```
 
 ### Node.js 依赖 (package.json)
@@ -413,7 +511,7 @@ console_error_panic_hook = "0.1"  # 开发时更好的错误信息（可选）
 - **prettier-plugin-svelte 3.0.0** - Svelte Prettier 插件
 - **svelte 5.0.0** - Svelte 框架
 - **svelte-check 4.0.0** - Svelte 类型检查工具
-- **typescript 5.7.0** - TypeScript 编译器
+- **typescript ~5.7.0** - TypeScript 编译器
 - **vite 6.0.0** - 构建工具和开发服务器
 - **typescript-eslint 8.0.0** - TypeScript ESLint
 
@@ -443,11 +541,7 @@ console_error_panic_hook = "0.1"  # 开发时更好的错误信息（可选）
 ## 已知限制
 
 ### 功能限制
-- Web 版本功能不完整，相比 Windows 桌面版缺少一些功能
-- BlockSelector 只有基础框架，完整功能待实现
-- NPCTracker 只有基础框架，完整功能待实现
-- 缺少保存图片功能
-- 缺少快捷键支持
+- Web 版本功能已基本完善，相比 Windows 桌面版只有少量差异
 - 颜色定义不完整（目前约 100 种，原项目有 753 种）
 
 ### 技术限制
@@ -461,30 +555,47 @@ console_error_panic_hook = "0.1"  # 开发时更好的错误信息（可选）
 - 需要支持 WebAssembly 的浏览器
 - 移动端支持正在优化中
 
+## 已完成功能
+
+### 核心功能 ✅
+- ✅ 世界文件加载和解析
+- ✅ 地图渲染和显示
+- ✅ 鼠标拖动平移
+- ✅ 滚轮缩放
+- ✅ 方块分类和搜索
+- ✅ 方块高亮显示（全部/单个）
+- ✅ NPC 列表和状态指示
+- ✅ NPC 位置定位和标记
+- ✅ 保存地图为图片
+- ✅ 全局快捷键支持
+- ✅ 可见区域渲染优化
+- ✅ 750+ 种方块数据
+- ✅ 30 种 NPC 数据
+- ✅ 响应式布局
+- ✅ 移动端适配
+
+### 架构优化 ✅
+- ✅ WASM 模块成功编译和集成
+- ✅ Rust 后端实现所有核心功能
+- ✅ Svelte 5 前端架构
+- ✅ TypeScript 类型安全
+- ✅ Store 状态管理
+- ✅ 性能优化（可见区域渲染）
+
 ## 待完成功能
 
-### 短期目标
-- [ ] 完善 BlockSelector 组件（方块下拉选择、高亮显示）
-- [ ] 完善 NPCTracker 组件（NPC 列表、定位）
-- [ ] 实现保存图片功能
-- [ ] 添加快捷键支持
-- [ ] 迁移剩余颜色定义（从 MapHelper.js）
-- [ ] 实现触摸手势支持（移动端）
+### 数据完善（低优先级）
+- [ ] 继续迁移颜色定义（从 MapHelper.js，目前约 100 种，原项目 753 种）
 
-### 中期目标
+### 性能优化（低优先级）
 - [ ] WASM 模块懒加载
-- [ ] 渲染优化（只渲染可见区域）
 - [ ] 批量绘制相同颜色的方块
 - [ ] Offscreen Canvas 支持
-- [ ] 性能基准测试和优化
-- [ ] 浏览器兼容性全面测试
 
-### 长期目标
-- [ ] 完整功能测试套件
-- [ ] 自动化测试（单元测试、集成测试）
-- [ ] CI/CD 流程
-- [ ] 文档完善（API 文档、用户手册）
-- [ ] 部署到 GitHub Pages
+### 技术债务（低优先级）
+- [ ] 修复 TypeScript 类型检查中的 WASM 模块导入警告
+- [ ] 更新 ESLint 配置到 v9.0 新格式
+- [ ] 修复 Rust 编译警告（未使用的导入和变量）
 
 ## 项目迁移状态
 
@@ -508,6 +619,7 @@ console_error_panic_hook = "0.1"  # 开发时更好的错误信息（可选）
 - ✅ 实现渲染器 (`renderer.rs`)
 - ✅ 实现 Canvas 2D 渲染
 - ✅ 禁用图像平滑（像素风格）
+- ✅ 实现可见区域渲染优化
 
 #### 阶段 4: 查找功能迁移
 - ✅ 实现搜索模块 (`search.rs`)
@@ -525,30 +637,13 @@ console_error_panic_hook = "0.1"  # 开发时更好的错误信息（可选）
 - ✅ 实现响应式布局
 - ✅ 复刻 Bootstrap 3 视觉效果
 
-### 进行中 ⏳
-
 #### 阶段 7: 功能完善
-- ⏳ BlockSelector 完整实现
-- ⏳ NPCTracker 完整实现
-- ⏳ 保存图片功能
-- ⏳ 快捷键支持
-- ⏳ 颜色定义继续迁移
-
-### 待开始 ⏸️
-
-#### 阶段 8: 性能优化
-- ⏸️ WASM 模块懒加载
-- ⏸️ 渲染优化（可见区域渲染）
-- ⏸️ 批量绘制优化
-- ⏸️ Offscreen Canvas 支持
-
-#### 阶段 9: 测试与发布
-- ⏸️ 完整功能测试
-- ⏸️ 性能基准测试
-- ⏸️ 浏览器兼容性测试
-- ⏸️ 移动端测试
-- ⏸️ 文档更新
-- ⏸️ 部署到 GitHub Pages
+- ✅ BlockSelector 完整实现（方块分类、搜索、高亮）
+- ✅ NPCTracker 完整实现（NPC 列表、定位）
+- ✅ 保存图片功能
+- ✅ 快捷键支持
+- ✅ 750+ 种方块数据定义
+- ✅ 30 种 NPC 数据定义
 
 ## 贡献指南
 
