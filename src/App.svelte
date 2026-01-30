@@ -11,12 +11,8 @@
     // 初始化 WASM 模块
     (async () => {
       try {
-        const wasm = await import('/pkg/terra_map_wasm.js');
+        const wasm = await import('@terra-map-wasm/core/terra_map_wasm.js');
         console.log('WASM module loaded:', wasm);
-        // 初始化 panic hook
-        if (wasm.set_once) {
-          wasm.set_once();
-        }
       } catch (error) {
         console.error('Failed to load WASM module:', error);
       }

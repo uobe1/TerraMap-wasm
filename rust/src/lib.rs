@@ -1,3 +1,5 @@
+use wasm_bindgen::prelude::*;
+
 mod colors;
 mod data_stream;
 mod world_loader;
@@ -13,3 +15,9 @@ pub use search::Searcher;
 
 #[cfg(feature = "console_error_panic_hook")]
 pub use console_error_panic_hook::set_once;
+
+#[wasm_bindgen(start)]
+pub fn start() {
+    #[cfg(feature = "console_error_panic_hook")]
+    console_error_panic_hook::set_once();
+}

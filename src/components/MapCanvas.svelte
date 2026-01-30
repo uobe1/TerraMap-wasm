@@ -14,10 +14,7 @@
 
   async function initWasm() {
     try {
-      wasmModule = await import('/pkg/terra_map_wasm.js');
-      if (wasmModule.set_once) {
-        wasmModule.set_once();
-      }
+      wasmModule = await import('@terra-map-wasm/core/terra_map_wasm.js');
       await wasmModule.default();
     } catch (error) {
       console.error('Failed to load WASM module:', error);

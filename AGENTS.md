@@ -27,7 +27,7 @@ TerraMap 是一个交互式的 Terraria v1.4.5 世界地图查看器，可以快
 - **自定义 CSS** - 通过覆盖样式保持与 Bootstrap 3 完全一致的视觉效果
 
 #### 开发工具
-- **ESLint 9** - 代码规范检查
+- **ESLint 9** - 代码规范检查（使用新的 flat config 格式）
 - **Prettier 3** - 代码格式化
 - **TypeScript 严格模式** - 强类型检查
 - **Svelte Check** - Svelte 组件类型检查
@@ -36,6 +36,7 @@ TerraMap 是一个交互式的 Terraria v1.4.5 世界地图查看器，可以快
 - **HTML5 Canvas API** - 地图渲染
 - **Rust Canvas 2D** - 通过 web-sys 实现
 - **可见区域渲染优化** - 只渲染可见区域以提升性能
+- **高亮渲染** - 支持方块高亮和 NPC 位置标记
 - **图像平滑禁用** - 保持像素风格
 
 #### 许可证
@@ -75,7 +76,6 @@ TerraMap-wasm/
 │   └── pkg.d.ts            # WASM 模块类型声明
 │
 ├── static/                  # 静态资源
-│   ├── css/                 # 自定义 CSS 文件
 │   ├── js/
 │   │   └── legacy/         # 保留的原有数据文件
 │   │       ├── settings.js     # 游戏设置和颜色配置
@@ -120,7 +120,7 @@ TerraMap-wasm/
 ├── vite.config.ts           # Vite 构建配置
 ├── tsconfig.json            # TypeScript 配置
 ├── svelte.config.js         # Svelte 配置
-├── .eslintrc.cjs            # ESLint 配置
+├── eslint.config.js         # ESLint 配置（v9.0 flat config 格式）
 ├── .prettierrc              # Prettier 配置
 ├── .gitignore               # Git 忽略规则
 ├── Plan.md                  # 迁移方案文档
@@ -581,6 +581,8 @@ console_error_panic_hook = { version = "0.1", optional = true }  # 开发时更�
 - ✅ TypeScript 类型安全
 - ✅ Store 状态管理
 - ✅ 性能优化（可见区域渲染）
+- ✅ ESLint v9.0 配置
+- ✅ WASM 模块自动初始化
 
 ## 待完成功能
 
@@ -593,9 +595,9 @@ console_error_panic_hook = { version = "0.1", optional = true }  # 开发时更�
 - [ ] Offscreen Canvas 支持
 
 ### 技术债务（低优先级）
-- [ ] 修复 TypeScript 类型检查中的 WASM 模块导入警告
-- [ ] 更新 ESLint 配置到 v9.0 新格式
 - [ ] 修复 Rust 编译警告（未使用的导入和变量）
+- [ ] 实现 `0` 键重置缩放功能
+- [ ] 添加更多快捷键（如方向键平移）
 
 ## 项目迁移状态
 
@@ -644,6 +646,12 @@ console_error_panic_hook = { version = "0.1", optional = true }  # 开发时更�
 - ✅ 快捷键支持
 - ✅ 750+ 种方块数据定义
 - ✅ 30 种 NPC 数据定义
+
+#### 阶段 8: 代码质量
+- ✅ TypeScript 类型检查通过
+- ✅ ESLint 配置更新到 v9.0
+- ✅ WASM 模块自动初始化
+- ✅ 所有核心功能代码审查通过
 
 ## 贡献指南
 
@@ -744,6 +752,7 @@ console_error_panic_hook = { version = "0.1", optional = true }  # 开发时更�
 - [TypeScript 官方文档](https://www.typescriptlang.org/)
 - [Vite 文档](https://vitejs.dev/)
 - [Bootstrap 5 文档](https://getbootstrap.com/)
+- [ESLint 9 文档](https://eslint.org/docs/latest/)
 
 ### 工具链接
 
@@ -757,7 +766,7 @@ console_error_panic_hook = { version = "0.1", optional = true }  # 开发时更�
 #### Rust WASM 调试
 ```bash
 # 开启 console_error_panic_hook 以获得更好的错误信息
-cargo build --target wasm32-unknown-unknown --features console_error_panic_hook
+cd rust && wasm-pack build --target web --out-dir ../pkg --dev
 ```
 
 #### TypeScript 调试

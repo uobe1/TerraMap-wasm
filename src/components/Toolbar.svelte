@@ -12,7 +12,7 @@
       worldStore.setLoading(true);
       worldStore.setError('');
 
-      const wasm = await import('/pkg/terra_map_wasm.js');
+      const wasm = await import('@terra-map-wasm/core/terra_map_wasm.js');
       const arrayBuffer = await file.arrayBuffer();
       const data = new Uint8Array(arrayBuffer);
 
