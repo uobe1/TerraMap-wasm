@@ -1,0 +1,34 @@
+/* Global styles复刻 Bootstrap 3 视觉效果 */
+:root {
+  /* Bootstrap 3 颜色 */
+  --bs-primary: #337ab7;
+  --bs-success: #5cb85c;
+  --bs-info: #5bc0de;
+  --bs-warning: #f0ad4e;
+  --bs-danger: #d9534f;
+  --bs-body-bg: #ffffff;
+  --bs-body-color: #333333;
+  --bs-link-color: #337ab7;
+  --bs-border-color: #cccccc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.42857143;
+  color: var(--bs-body-color);
+  background-color: var(--bs-body-bg);
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
