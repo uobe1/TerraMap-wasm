@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { worldStore } from '../lib/stores';
+  import { worldStore, highlightStore, npcStore } from '../lib/stores';
 
   let canvasElement: HTMLCanvasElement;
-  let ctx: CanvasRenderingContext2D;
+  let wasmModule: any = null;
+  let renderer: any = null;
   let scale = 1;
   let offsetX = 0;
   let offsetY = 0;
@@ -11,11 +12,35 @@
   let lastX = 0;
   let lastY = 0;
 
+  async function initWasm() {
+    try {
+      wasmModule = await import('/pkg/terra_map_wasm.js');
+      if (wasmModule.set_once) {
+        wasmModule.set_once();
+      }
+      await wasmModule.default();
+    } catch (error) {
+      console.error('Failed to load WASM module:', error);
+    }
+  }
+
+  function initRenderer() {
+    if (!wasmModule || !canvasElement) return;
+    try {
+      renderer = new wasmModule.Renderer(canvasElement);
+    } catch (error) {
+      console.error('Failed to create renderer:', error);
+    }
+  }
+
   function handleWheel(e: WheelEvent) {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
     const newScale = Math.max(0.1, Math.min(10, scale * delta));
     scale = newScale;
+    if (renderer) {
+      renderer.set_scale(scale);
+    }
     render();
   }
 
@@ -41,17 +66,67 @@
   }
 
   function render() {
+    if (!renderer) return;
+
+    const ctx = canvasElement.getContext('2d');
     if (!ctx) return;
+
+    // 清空画布
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     ctx.save();
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    // 这里将来会从 WASM 模块调用渲染逻辑
+    // 渲染世界
     if ($worldStore.world) {
-      // 临时渲染占位
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, $worldStore.world.width, $worldStore.world.height);
+      try {
+        const worldJs = $worldStore.world;
+
+        // 计算可见区域
+        const canvasWidth = canvasElement.width / scale;
+        const canvasHeight = canvasElement.height / scale;
+        const startX = Math.floor(-offsetX / scale);
+        const startY = Math.floor(-offsetY / scale);
+        const visibleArea = [startX, startY, Math.ceil(canvasWidth), Math.ceil(canvasHeight)];
+
+        // 如果有高亮位置，使用高亮渲染
+        if ($highlightStore.foundPositions.length > 0) {
+          const highlightPositions = $highlightStore.foundPositions.flatMap(p => [p.x, p.y]);
+          renderer.render_world_visible_js(
+            worldJs,
+            visibleArea,
+            highlightPositions,
+            $highlightStore.highlightAll
+          );
+        } else {
+          renderer.render_world_visible_js(
+            worldJs,
+            visibleArea,
+            [],
+            false
+          );
+        }
+
+        // 渲染 NPC 高亮
+        if ($npcStore.npcPosition) {
+          const { x, y } = $npcStore.npcPosition;
+
+          // 绘制 NPC 位置标记（红色圆圈）
+          ctx.strokeStyle = '#ff0000';
+          ctx.lineWidth = 2 / scale;
+          ctx.beginPath();
+          ctx.arc(x + 0.5, y + 0.5, 1.5, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // 绘制 NPC 位置标记（填充圆圈）
+          ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+          ctx.beginPath();
+          ctx.arc(x + 0.5, y + 0.5, 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } catch (error) {
+        console.error('Failed to render world:', error);
+      }
     } else {
       // 显示提示文字
       ctx.fillStyle = '#666666';
@@ -64,17 +139,15 @@
   }
 
   onMount(() => {
-    ctx = canvasElement.getContext('2d')!;
-    if (ctx) {
-      ctx.imageSmoothingEnabled = false;
-    }
+    initWasm().then(() => {
+      initRenderer();
+      render();
+    });
 
     canvasElement.addEventListener('wheel', handleWheel, { passive: false });
     canvasElement.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-
-    render();
 
     return () => {
       canvasElement.removeEventListener('wheel', handleWheel);
@@ -85,7 +158,9 @@
   });
 
   // 响应式更新
-  $: render();
+  $: if ($worldStore.world || $highlightStore.foundPositions.length > 0 || $npcStore.npcPosition) {
+    render();
+  }
 </script>
 
 <canvas bind:this={canvasElement} class="map-canvas"></canvas>

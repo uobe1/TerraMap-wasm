@@ -5,21 +5,98 @@
   import BlockSelector from './components/BlockSelector.svelte';
   import NPCTracker from './components/NPCTracker.svelte';
   import InfoPanel from './components/InfoPanel.svelte';
-  import { worldStore } from './lib/stores';
+  import { highlightStore, npcStore } from './lib/stores';
 
-  onMount(async () => {
+  onMount(() => {
     // 初始化 WASM 模块
-    try {
-      const wasm = await import('/pkg/terra_map_wasm.js');
-      console.log('WASM module loaded:', wasm);
-      // 初始化 panic hook
-      if (wasm.set_once) {
-        wasm.set_once();
+    (async () => {
+      try {
+        const wasm = await import('/pkg/terra_map_wasm.js');
+        console.log('WASM module loaded:', wasm);
+        // 初始化 panic hook
+        if (wasm.set_once) {
+          wasm.set_once();
+        }
+      } catch (error) {
+        console.error('Failed to load WASM module:', error);
       }
-    } catch (error) {
-      console.error('Failed to load WASM module:', error);
-    }
+    })();
+
+    // 添加快捷键支持
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   });
+
+  function handleKeyDown(e: KeyboardEvent) {
+    // Ctrl/Cmd + O: 打开文件选择
+    if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+      e.preventDefault();
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.click();
+      }
+    }
+
+    // Ctrl/Cmd + S: 保存地图图片
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      const saveButton = document.querySelector('button:has-text("Save Map Image")') as HTMLButtonElement;
+      if (saveButton && !saveButton.disabled) {
+        saveButton.click();
+      }
+    }
+
+    // Ctrl/Cmd + F: 聚焦搜索框
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+      if (searchInput && !searchInput.disabled) {
+        searchInput.focus();
+      }
+    }
+
+    // Escape: 清除高亮和选择
+    if (e.key === 'Escape') {
+      highlightStore.clear();
+      npcStore.clear();
+    }
+
+    // +/- 或 Ctrl/Cmd + +/-: 缩放
+    if (e.key === '+' || e.key === '=' || (e.ctrlKey && e.key === '=')) {
+      e.preventDefault();
+      const canvas = document.querySelector('.map-canvas') as HTMLCanvasElement;
+      if (canvas) {
+        const event = new WheelEvent('wheel', {
+          deltaY: -10,
+          bubbles: true,
+          cancelable: true,
+        });
+        canvas.dispatchEvent(event);
+      }
+    }
+
+    if (e.key === '-' || e.key === '_' || (e.ctrlKey && e.key === '-')) {
+      e.preventDefault();
+      const canvas = document.querySelector('.map-canvas') as HTMLCanvasElement;
+      if (canvas) {
+        const event = new WheelEvent('wheel', {
+          deltaY: 10,
+          bubbles: true,
+          cancelable: true,
+        });
+        canvas.dispatchEvent(event);
+      }
+    }
+
+    // 数字键 0: 重置缩放
+    if (e.key === '0') {
+      e.preventDefault();
+      // TODO: 实现重置缩放功能
+    }
+  }
 </script>
 
 <div class="app-container">
