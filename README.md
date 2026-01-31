@@ -115,7 +115,6 @@ MIT License - see LICENSE file for details
 ## Links
 
 - [Original TerraMap](https://terramap.github.io)
-- [Windows Desktop Version](https://terramap.github.io/windows.html)
 - [Terraria Wiki](https://terraria.fandom.com/wiki/Terraria_Wiki)
 
 ## Migration Status

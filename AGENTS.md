@@ -4,9 +4,9 @@
 
 TerraMap 是一个交互式的 Terraria v1.4.5 世界地图查看器，可以快速加载世界文件，支持平移、缩放、查找方块、矿石、箱子中的物品、地牢、NPC 等功能。
 
-这是 TerraMap-wasm 的现代化版本，已完成从纯 JavaScript 技术栈到现代技术栈的迁移。项目采用 Rust WebAssembly 实现核心功能，Svelte 5 + TypeScript 作为前端框架，同时保持界面风格与原版一致，并增加了响应式布局和移动端适配。
+这是 TerraMap 的现代化版本，已完成从纯 JavaScript 技术栈到现代技术栈的迁移。项目采用 Rust WebAssembly 实现核心功能，Svelte 5 + TypeScript 作为前端框架，同时保持界面风格与原版一致，并增加了响应式布局和移动端适配。
 
-源代码仓库托管在 GitHub。Web 版本功能已基本完善，支持所有核心地图查看功能。更功能完善但仅限 Windows 的桌面版本可在 https://terramap.github.io/windows.html 获取。
+源代码仓库托管在 GitHub。Web 版本功能已基本完善，支持所有核心地图查看功能。
 
 ### 主要技术栈
 
@@ -112,7 +112,6 @@ TerraMap-wasm/
 │
 ├── index.html               # 主入口页面
 ├── about.html               # 帮助/关于页面
-├── windows.html             # Windows 版本下载页面
 ├── README.md                # 项目说明文档
 ├── LICENSE                  # MIT 许可证
 ├── package.json             # Node.js 依赖和脚本
@@ -124,10 +123,7 @@ TerraMap-wasm/
 ├── .prettierrc              # Prettier 配置
 ├── .gitignore               # Git 忽略规则
 ├── Plan.md                  # 迁移方案文档
-├── p.md                     # 迁移进度文档
-├── pp1.md                   # 进度文档 1
-├── pp2.md                   # 进度文档 2
-├── test.wld                 # 测试用的 Terraria 世界文件
+├── Process.md                   # 进度文档
 └── AGENTS.md                # 本文档，项目开发指南
 ```
 
@@ -557,7 +553,6 @@ console_error_panic_hook = { version = "0.1", optional = true }  # 开发时更�
 ## 已知限制
 
 ### 功能限制
-- Web 版本功能已基本完善，相比 Windows 桌面版只有少量差异
 - 颜色定义不完整（目前约 100 种，原项目有 753 种）
 
 ### 技术限制
