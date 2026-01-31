@@ -129,7 +129,11 @@ impl Renderer {
             None => (0, 0, world.width as usize, world.height as usize),
         };
 
-        // 批量渲染方块
+        // 性能优化：按颜色分组批量渲染
+        let mut color_groups: std::collections::HashMap<String, Vec<(f64, f64)>> = std::collections::HashMap::new();
+        let mut highlight_positions: Vec<(f64, f64)> = Vec::new();
+
+        // 第一遍：收集所有方块位置并按颜色分组
         for y in start_y..end_y {
             for x in start_x..end_x {
                 let idx = (y * world.width as usize + x) as usize;
@@ -140,8 +144,42 @@ impl Renderer {
                 let tile = &world.tiles[idx];
                 if tile.is_active {
                     let is_highlighted = highlight_set.contains(&(x as i32, y as i32));
-                    self.render_tile(x as f64, y as f64, tile, is_highlighted, highlight_all)?;
+                    
+                    if is_highlighted && highlight_all {
+                        // 全部高亮模式：直接绘制高亮方块
+                        let color = "rgba(255, 255, 0, 0.5)".to_string();
+                        color_groups.entry(color).or_insert_with(Vec::new).push((x as f64, y as f64));
+                    } else if is_highlighted {
+                        // 单个高亮模式：记录位置，稍后单独绘制
+                        highlight_positions.push((x as f64, y as f64));
+                        
+                        // 同时绘制正常颜色的方块
+                        let color = crate::colors::TileColors::get_color(tile.tile_id).to_css_string();
+                        color_groups.entry(color).or_insert_with(Vec::new).push((x as f64, y as f64));
+                    } else {
+                        // 正常模式：按颜色分组
+                        let color = crate::colors::TileColors::get_color(tile.tile_id).to_css_string();
+                        color_groups.entry(color).or_insert_with(Vec::new).push((x as f64, y as f64));
+                    }
                 }
+            }
+        }
+
+        // 第二遍：批量绘制相同颜色的方块
+        let size = self.scale;
+        for (color, positions) in color_groups {
+            self.ctx.set_fill_style_str(&color);
+            for (x, y) in positions {
+                self.ctx.fill_rect(x * size, y * size, size, size);
+            }
+        }
+
+        // 第三遍：绘制单个高亮的边框
+        if !highlight_all {
+            self.ctx.set_stroke_style_str("rgba(255, 255, 0, 0.8)");
+            self.ctx.set_line_width(2.0 / self.scale);
+            for (x, y) in highlight_positions {
+                self.ctx.stroke_rect(x * size, y * size, size, size);
             }
         }
 

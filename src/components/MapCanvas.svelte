@@ -1,26 +1,28 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { worldStore, highlightStore, npcStore, viewStore } from '../lib/stores';
+  import { initWasm, getWasmModule } from '../lib/wasm';
 
   let canvasElement: HTMLCanvasElement;
-  let wasmModule: any = null;
   let renderer: any = null;
   let isDragging = false;
   let lastX = 0;
   let lastY = 0;
 
-  async function initWasm() {
+  async function initWasmAndRenderer() {
     try {
-      wasmModule = await import('@terra-map-wasm/core/terra_map_wasm.js');
-      await wasmModule.default();
+      // 懒加载 WASM 模块
+      await initWasm();
+      initRenderer();
     } catch (error) {
       console.error('Failed to load WASM module:', error);
     }
   }
 
   function initRenderer() {
-    if (!wasmModule || !canvasElement) return;
+    if (!canvasElement) return;
     try {
+      const wasmModule = getWasmModule();
       renderer = new wasmModule.Renderer(canvasElement);
     } catch (error) {
       console.error('Failed to create renderer:', error);

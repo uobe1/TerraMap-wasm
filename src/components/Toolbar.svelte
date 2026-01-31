@@ -1,7 +1,9 @@
 <script lang="ts">
   import { worldStore } from '../lib/stores';
+  import { initWasm, getWasmModule } from '../lib/wasm';
 
   let fileInput: HTMLInputElement;
+  let isInitializingWasm = false;
 
   async function handleFileSelect(event: Event) {
     const target = event.target as HTMLInputElement;
@@ -12,7 +14,14 @@
       worldStore.setLoading(true);
       worldStore.setError('');
 
-      const wasm = await import('@terra-map-wasm/core/terra_map_wasm.js');
+      // 懒加载 WASM 模块（只在用户选择文件时才加载）
+      if (!isInitializingWasm) {
+        isInitializingWasm = true;
+        await initWasm();
+        isInitializingWasm = false;
+      }
+
+      const wasm = getWasmModule();
       const arrayBuffer = await file.arrayBuffer();
       const data = new Uint8Array(arrayBuffer);
 
@@ -25,6 +34,7 @@
       console.error('Failed to load world:', error);
       worldStore.setError('Failed to load world file: ' + error);
       alert('Failed to load world file: ' + error);
+      isInitializingWasm = false;
     }
   }
 

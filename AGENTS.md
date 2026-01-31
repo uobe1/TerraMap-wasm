@@ -6,6 +6,17 @@ TerraMap 是一个交互式的 Terraria v1.4.5 世界地图查看器，可以快
 
 这是 TerraMap 的现代化版本，已完成从纯 JavaScript 技术栈到现代技术栈的迁移。项目采用 Rust WebAssembly 实现核心功能，Svelte 5 + TypeScript 作为前端框架，同时保持界面风格与原版一致，并增加了响应式布局和移动端适配。
 
+**当前版本**: 2.0.0  
+**项目完成度**: 86%（核心功能已全部完成）  
+**迁移状态**: Plan.md 计划 6/7 任务完成，剩余 1 项为低优先级功能
+
+**核心成就**:
+- ✅ 735 种方块颜色定义（覆盖率 97.6%）
+- ✅ WASM 模块懒加载（优化初始加载性能）
+- ✅ 批量渲染优化（提升渲染性能）
+- ✅ 所有代码编译无警告、无错误
+- ✅ 完整的错误处理和用户反馈
+
 源代码仓库托管在 GitHub。Web 版本功能已基本完善，支持所有核心地图查看功能。
 
 ### 主要技术栈
@@ -48,24 +59,26 @@ TerraMap 是一个交互式的 Terraria v1.4.5 世界地图查看器，可以快
 TerraMap-wasm/
 ├── rust/                    # Rust WebAssembly 模块
 │   ├── src/
-│   │   ├── lib.rs          # 主入口，导出 WASM 接口
-│   │   ├── data_stream.rs  # 二进制数据流解析
-│   │   ├── world_loader.rs # 世界文件加载器
-│   │   ├── renderer.rs     # Canvas 渲染逻辑（支持高亮和可见区域优化）
+│   │   ├── lib.rs          # 主入口，导出 WASM 接口，使用 #[wasm_bindgen(start)] 自动初始化
+│   │   ├── data_stream.rs  # 二进制数据流解析（支持 7-bit 变长编码）
+│   │   ├── world_loader.rs # 世界文件加载器（支持 Terraria 1.4.5，版本号 279）
+│   │   ├── renderer.rs     # Canvas 渲染逻辑（批量渲染优化、可见区域优化）
 │   │   ├── search.rs       # 数据查找和筛选
-│   │   └── colors.rs       # 颜色定义
+│   │   ├── colors.rs       # 颜色定义（735 种方块颜色，覆盖率 97.6%）
+│   │   ├── colors_generated.rs # 自动生成的颜色定义（临时文件）
+│   │   └── colors.rs.backup # 颜色文件备份
 │   ├── Cargo.toml          # Rust 项目配置
 │   └── target/             # Rust 编译输出
 │
 ├── src/                     # Svelte + TypeScript 前端
 │   ├── components/         # Svelte 组件
 │   │   ├── MapCanvas.svelte      # 地图 Canvas 组件（支持缩放、平移、高亮、NPC 标记）
-│   │   ├── Toolbar.svelte        # 工具栏（文件选择、保存图片）
+│   │   ├── Toolbar.svelte        # 工具栏（文件选择、保存图片、WASM 懒加载）
 │   │   ├── BlockSelector.svelte  # 方块选择器（分类、搜索、高亮）
 │   │   ├── NPCTracker.svelte     # NPC 追踪器（列表、定位）
 │   │   └── InfoPanel.svelte      # 信息面板（显示世界信息）
 │   ├── lib/
-│   │   ├── wasm.ts         # Rust WASM 模块封装
+│   │   ├── wasm.ts         # Rust WASM 模块封装（支持懒加载和加载状态管理）
 │   │   ├── stores.ts       # Svelte stores（状态管理：worldStore, highlightStore, npcStore, viewStore）
 │   │   ├── types.ts        # TypeScript 类型定义
 │   │   ├── tileData.ts     # 750+ 种方块数据定义
@@ -74,6 +87,12 @@ TerraMap-wasm/
 │   ├── main.ts             # 入口文件
 │   ├── app.css             # 全局样式（复刻 Bootstrap 3 风格）
 │   └── pkg.d.ts            # WASM 模块类型声明
+│
+├── scripts/                 # 自动化脚本（新增）
+│   ├── extract_colors.cjs  # 从 MapHelper.js 提取颜色定义
+│   ├── replace_colors.cjs  # 替换 colors.rs 文件
+│   ├── fix_compilation.cjs # 修复编译错误
+│   └── fix_warnings.cjs    # 修复编译警告
 │
 ├── static/                  # 静态资源
 │   ├── js/
@@ -182,6 +201,30 @@ npm run lint
 # Prettier 代码格式化
 npm run format
 ```
+
+### 自动化脚本
+
+项目包含多个自动化脚本，用于提高开发效率：
+
+```bash
+# 从 MapHelper.js 提取颜色定义并生成 Rust 代码
+node scripts/extract_colors.cjs
+
+# 用生成的颜色定义替换原有的 colors.rs 文件
+node scripts/replace_colors.cjs
+
+# 修复编译错误（stream.buffer.len() → stream.len()）
+node scripts/fix_compilation.cjs
+
+# 修复编译警告（未使用的变量）
+node scripts/fix_warnings.cjs
+```
+
+**脚本说明**:
+- `extract_colors.cjs`: 从原版 `MapHelper.js` 自动提取颜色定义，处理变量引用和循环依赖
+- `replace_colors.cjs`: 自动备份原文件并替换为新生成的颜色定义
+- `fix_compilation.cjs`: 修复私有字段访问错误
+- `fix_warnings.cjs`: 修复未使用变量警告
 
 ### 原版运行（遗留代码）
 
@@ -295,18 +338,39 @@ readFileFormatHeader() → readHeader() → readTiles() → readChests() → rea
 - 禁用图像平滑（保持像素风格）
 
 **性能优化**：
+- **批量渲染优化**：按颜色对方块进行分组，减少画布上下文切换次数
 - 可见区域渲染优化，避免渲染屏幕外的方块
 - 支持高亮渲染，标记特定方块位置
 - NPC 位置标记（红色圆圈）
 
+**批量渲染实现**：
+```rust
+// 颜色分组
+let mut color_groups: std::collections::HashMap<String, Vec<(f64, f64)>> =
+    std::collections::HashMap::new();
+
+// 批量绘制
+for (color, positions) in color_groups {
+    ctx.set_fill_style(&color);
+    for (x, y) in positions {
+        ctx.fill_rect(x, y, scale, scale);
+    }
+}
+```
+
 #### 1.5 颜色定义 (`colors.rs`)
 从原版 MapHelper.js 迁移的颜色映射：
 - `Rgb` 结构体 (r, g, b)
-- `TileColors` 常量定义（包含 100+ 种方块颜色）
+- `TileColors` 常量定义（包含 735 种方块颜色）
 - `get_color()` 方法 - 根据方块 ID 返回颜色
+- `get_color_variant()` 方法 - 获取特定变体的颜色
 - `to_css_string()` 方法 - 转换为 CSS 格式
 
-**状态**：颜色定义仍在持续完善中，目标是从原项目的 753 种颜色迁移。
+**状态**：✅ 颜色定义已完成，覆盖率 97.6%（735/753）
+- 使用自动化脚本从 `MapHelper.js` 提取
+- 处理了变量引用、`rgb()` 函数调用和循环依赖
+- 支持颜色变体（不同样式）
+- 仅缺失 18 个原版颜色
 
 #### 1.6 搜索模块 (`search.rs`)
 实现高效搜索功能：
@@ -423,8 +487,27 @@ TypeScript 类型定义：
 
 #### 2.6 WASM 封装 (wasm.ts)
 Rust WASM 模块封装：
-- `initWasm()` - 初始化 WASM
+- `initWasm()` - 初始化 WASM（支持懒加载）
 - `getWasmModule()` - 获取 WASM 模块
+- `getWasmStatus()` - 获取 WASM 加载状态
+
+**懒加载功能**：
+- 加载状态管理：`'uninitialized' | 'loading' | 'loaded' | 'error'`
+- 模块缓存：避免重复加载
+- 错误处理：详细的错误信息和状态跟踪
+- 按需加载：仅在需要时加载 WASM 模块，优化初始加载性能
+
+**使用示例**：
+```typescript
+// 检查加载状态
+const status = getWasmStatus();
+
+// 按需加载
+await initWasm();
+
+// 获取模块
+const module = getWasmModule();
+```
 
 ### 3. 原版遗留代码
 
@@ -548,25 +631,25 @@ console_error_panic_hook = { version = "0.1", optional = true }
 ### Node.js 依赖 (package.json)
 
 #### 生产依赖
-- **bootstrap 5.3.3** - UI 框架
+- **bootstrap ^5.3.3** - UI 框架
 
 #### 开发依赖
-- **@sveltejs/vite-plugin-svelte 4.0.0** - Svelte Vite 插件
-- **@tsconfig/svelte 5.0.0** - Svelte TypeScript 配置
-- **@types/node 22.0.0** - Node.js 类型定义
-- **@typescript-eslint/eslint-plugin 8.0.0** - TypeScript ESLint 插件
-- **@typescript-eslint/parser 8.0.0** - TypeScript ESLint 解析器
-- **eslint 9.0.0** - 代码检查工具
-- **eslint-config-prettier 9.0.0** - ESLint 和 Prettier 兼容
-- **eslint-plugin-svelte 3.0.0** - Svelte ESLint 插件
-- **globals 15.0.0** - 全局变量定义
-- **prettier 3.0.0** - 代码格式化工具
-- **prettier-plugin-svelte 3.0.0** - Svelte Prettier 插件
-- **svelte 5.0.0** - Svelte 框架
-- **svelte-check 4.0.0** - Svelte 类型检查工具
+- **@sveltejs/vite-plugin-svelte ^4.0.0** - Svelte Vite 插件
+- **@tsconfig/svelte ^5.0.0** - Svelte TypeScript 配置
+- **@types/node ^22.0.0** - Node.js 类型定义
+- **@typescript-eslint/eslint-plugin ^8.0.0** - TypeScript ESLint 插件
+- **@typescript-eslint/parser ^8.0.0** - TypeScript ESLint 解析器
+- **eslint ^9.0.0** - 代码检查工具
+- **eslint-config-prettier ^9.0.0** - ESLint 和 Prettier 兼容
+- **eslint-plugin-svelte ^3.0.0** - Svelte ESLint 插件
+- **globals ^15.0.0** - 全局变量定义
+- **prettier ^3.0.0** - 代码格式化工具
+- **prettier-plugin-svelte ^3.0.0** - Svelte Prettier 插件
+- **svelte ^5.0.0** - Svelte 框架
+- **svelte-check ^4.0.0** - Svelte 类型检查工具
 - **typescript ~5.7.0** - TypeScript 编译器
-- **vite 6.0.0** - 构建工具和开发服务器
-- **typescript-eslint 8.0.0** - TypeScript ESLint
+- **vite ^6.0.0** - 构建工具和开发服务器
+- **typescript-eslint ^8.0.0** - TypeScript ESLint
 
 ### 加载顺序
 
@@ -593,23 +676,28 @@ console_error_panic_hook = { version = "0.1", optional = true }
 ## 已知限制
 
 ### 功能限制
-- 颜色定义不完整（目前约 100 种，原项目有 753 种）
+- 颜色定义不完整（目前 735 种，原项目有 753 种，覆盖率 97.6%）
+  - 仅缺失 18 个原版颜色
+  - 已实现核心方块类型的颜色支持
 
 ### 技术限制
 - 需要现代浏览器支持 WebAssembly 和 File API
-- 大型世界文件加载可能需要较长时间
-- Canvas 渲染性能取决于设备能力
-- WASM 模块首次加载可能需要时间（可优化）
+- 大型世界文件加载可能需要较长时间（可通过 WASM 懒加载优化）
+- Canvas 渲染性能取决于设备能力（已实现批量渲染优化）
 
 ### 浏览器兼容性
 - 推荐使用最新版本的 Chrome、Firefox、Safari 或 Edge
 - 需要支持 WebAssembly 的浏览器
-- 移动端支持正在优化中
+- 移动端支持已完成（响应式布局）
+
+### 待优化功能（低优先级）
+- Offscreen Canvas 支持（用于进一步性能优化）
+- 更多 Terraria 版本格式支持
 
 ## 已完成功能
 
 ### 核心功能 ✅
-- ✅ 世界文件加载和解析
+- ✅ 世界文件加载和解析（Terraria 1.4.5，版本号 279）
 - ✅ 地图渲染和显示
 - ✅ 鼠标拖动平移
 - ✅ 滚轮缩放
@@ -619,7 +707,6 @@ console_error_panic_hook = { version = "0.1", optional = true }
 - ✅ NPC 位置定位和标记
 - ✅ 保存地图为图片
 - ✅ 全局快捷键支持
-- ✅ 可见区域渲染优化
 - ✅ 750+ 种方块数据
 - ✅ 30 种 NPC 数据
 - ✅ 响应式布局
@@ -631,35 +718,41 @@ console_error_panic_hook = { version = "0.1", optional = true }
 - ✅ Rust 后端实现所有核心功能
 - ✅ Svelte 5 前端架构
 - ✅ TypeScript 类型安全
-- ✅ Store 状态管理（新增 viewStore）
-- ✅ 性能优化（可见区域渲染）
+- ✅ Store 状态管理（worldStore, highlightStore, npcStore, viewStore）
+- ✅ **WASM 模块懒加载**（优化初始加载性能）
+- ✅ **批量渲染优化**（减少画布上下文切换）
+- ✅ **735 种方块颜色定义**（覆盖率 97.6%）
 - ✅ ESLint v9.0 配置
 - ✅ WASM 模块自动初始化（使用 `#[wasm_bindgen(start)]`）
-- ✅ 修复 Rust 编译警告
+- ✅ 所有代码编译无警告、无错误
 - ✅ 修复世界文件读取逻辑（7-bit 变长编码、重要性位图）
+- ✅ **增强错误处理**（自定义错误类型和详细错误消息）
+
+### 自动化脚本 ✅
+- ✅ 颜色提取脚本（从 MapHelper.js 提取颜色定义）
+- ✅ 颜色替换脚本（自动备份和替换）
+- ✅ 编译错误修复脚本
+- ✅ 编译警告修复脚本
 
 ### 测试验证 ✅
 - ✅ 验证世界信息读取正确性
 - ✅ 验证 7-bit 编码字符串解析
 - ✅ 验证重要性位图处理
+- ✅ 验证批量渲染性能提升
 
 ## 待完成功能
 
-### 数据完善（低优先级）
-- [ ] 继续迁移颜色定义（从 MapHelper.js，目前约 100 种，原项目 753 种）
-
 ### 性能优化（低优先级）
-- [ ] WASM 模块懒加载
-- [ ] 批量绘制相同颜色的方块
-- [ ] Offscreen Canvas 支持
+- ⏳ Offscreen Canvas 支持（进一步性能优化）
 
 ### 功能增强（低优先级）
-- [ ] 添加更多快捷键（如方向键平移）
-- [ ] 支持更多世界格式版本
+- ⏳ 添加更多快捷键（如方向键平移）
+- ⏳ 支持更多世界格式版本
 
-### 代码清理（低优先级）
-- [ ] 移除调试输出
-- [ ] 添加更完善的错误处理
+### 数据完善（低优先级）
+- ⏳ 补充缺失的 18 种颜色定义（可选）
+
+**总体完成度**: 86%（6/7 Plan.md 任务完成）
 
 ## 项目迁移状态
 
@@ -679,13 +772,17 @@ console_error_panic_hook = { version = "0.1", optional = true }
 - ✅ 暴露 WASM 接口给前端
 - ✅ 修复 7-bit 变长编码字符串解析
 - ✅ 修复重要性位图读取逻辑
+- ✅ 增强错误处理（自定义错误类型）
 
 #### 阶段 3: 渲染层迁移
 - ✅ 实现颜色定义 (`colors.rs`)
+  - 735 种方块颜色定义（覆盖率 97.6%）
+  - 自动化脚本从 MapHelper.js 提取
 - ✅ 实现渲染器 (`renderer.rs`)
 - ✅ 实现 Canvas 2D 渲染
 - ✅ 禁用图像平滑（像素风格）
 - ✅ 实现可见区域渲染优化
+- ✅ **实现批量渲染优化**（减少画布上下文切换）
 
 #### 阶段 4: 查找功能迁移
 - ✅ 实现搜索模块 (`search.rs`)
@@ -697,6 +794,7 @@ console_error_panic_hook = { version = "0.1", optional = true }
 - ✅ 实现状态管理 (stores.ts)
 - ✅ 定义 TypeScript 类型
 - ✅ 实现 WASM 封装
+- ✅ **实现 WASM 懒加载**（优化初始加载性能）
 
 #### 阶段 6: 集成与优化
 - ✅ WASM 模块成功编译和集成
@@ -716,14 +814,25 @@ console_error_panic_hook = { version = "0.1", optional = true }
 - ✅ ESLint 配置更新到 v9.0
 - ✅ WASM 模块自动初始化
 - ✅ 修复所有 Rust 编译警告
-- ✅ 所有核心功能代码审查通过
+- ✅ 所有代码编译无警告、无错误
+- ✅ 清理所有调试输出
 
-#### 阶段 9: 增强功能（最新完成）
+#### 阶段 9: 增强功能
 - ✅ 实现 viewStore 管理视图状态
 - ✅ 实现数字键 0 重置缩放功能
 - ✅ 使用 `#[wasm_bindgen(start)]` 实现自动初始化
 - ✅ 优化 worldStore 清除逻辑
 - ✅ 修复世界文件读取逻辑关键问题
+
+#### 阶段 10: 自动化工具（最新完成）
+- ✅ 创建颜色提取脚本 (`extract_colors.cjs`)
+- ✅ 创建颜色替换脚本 (`replace_colors.cjs`)
+- ✅ 创建编译错误修复脚本 (`fix_compilation.cjs`)
+- ✅ 创建编译警告修复脚本 (`fix_warnings.cjs`)
+- ✅ 所有自动化脚本功能验证通过
+
+**总体进度**: 86%（Plan.md 计划 6/7 任务完成）
+**剩余任务**: Offscreen Canvas 支持（低优先级）
 
 ## 贡献指南
 
@@ -814,6 +923,63 @@ console_error_panic_hook = { version = "0.1", optional = true }
 - **README.md** - 项目说明文档
 - **AGENTS.md** - 本文档，项目开发指南
 
+### 自动化脚本文档
+
+项目包含多个自动化脚本，用于提高开发效率和代码质量：
+
+#### `scripts/extract_colors.cjs`
+从原版 `MapHelper.js` 自动提取颜色定义并转换为 Rust 格式。
+
+**功能**:
+- 解析 `tileColors` 数组定义
+- 处理变量引用和 `rgb()` 函数调用
+- 支持循环检测防止无限递归
+- 生成完整的 Rust 代码结构
+
+**使用方法**:
+```bash
+node scripts/extract_colors.cjs
+```
+
+**输出文件**: `rust/src/colors_generated.rs`
+
+#### `scripts/replace_colors.cjs`
+用生成的颜色定义替换原有的 `colors.rs` 文件。
+
+**功能**:
+- 自动备份原有文件（`colors.rs.backup`）
+- 替换为新生成的颜色定义
+- 统计颜色定义数量
+
+**使用方法**:
+```bash
+node scripts/replace_colors.cjs
+```
+
+#### `scripts/fix_compilation.cjs`
+自动修复编译错误。
+
+**功能**:
+- 修复 `stream.buffer.len()` 私有字段访问错误
+- 替换为公开的 `stream.len()` 方法
+
+**使用方法**:
+```bash
+node scripts/fix_compilation.cjs
+```
+
+#### `scripts/fix_warnings.cjs`
+自动修复编译警告。
+
+**功能**:
+- 修复未使用变量警告
+- 将变量名改为下划线前缀（如 `_initial_position`）
+
+**使用方法**:
+```bash
+node scripts/fix_warnings.cjs
+```
+
 ### 技术文档
 
 - [Rust 官方文档](https://www.rust-lang.org/)
@@ -851,6 +1017,19 @@ npm run dev
 #### 性能分析
 - 使用 Chrome DevTools Performance 面板分析渲染性能
 - 使用 Rust `cargo flamegraph` 分析 WASM 性能（需要额外工具）
+
+#### 自动化脚本使用建议
+```bash
+# 修改颜色定义时的标准流程
+node scripts/extract_colors.cjs  # 提取颜色
+node scripts/replace_colors.cjs  # 替换文件
+npm run build:wasm               # 重新编译 WASM
+
+# 修复编译问题
+node scripts/fix_compilation.cjs # 修复编译错误
+node scripts/fix_warnings.cjs    # 修复编译警告
+npm run build:wasm               # 验证修复
+```
 
 ## 联系方式
 

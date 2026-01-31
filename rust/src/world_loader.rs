@@ -5,6 +5,42 @@ use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::data_stream::DataStream;
 
+// 错误类型
+#[derive(Debug)]
+pub enum WorldLoadError {
+    InvalidData { message: String },
+    UnsupportedVersion { version: i32 },
+    CorruptedData { position: usize, message: String },
+    InvalidFormat { expected: String, found: String },
+}
+
+impl std::fmt::Display for WorldLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WorldLoadError::InvalidData { message } => {
+                write!(f, "Invalid data: {}", message)
+            }
+            WorldLoadError::UnsupportedVersion { version } => {
+                write!(f, "Unsupported world version: {}", version)
+            }
+            WorldLoadError::CorruptedData { position, message } => {
+                write!(f, "Corrupted data at position {}: {}", position, message)
+            }
+            WorldLoadError::InvalidFormat { expected, found } => {
+                write!(f, "Invalid format: expected '{}', found '{}'", expected, found)
+            }
+        }
+    }
+}
+
+impl std::error::Error for WorldLoadError {}
+
+impl From<WorldLoadError> for String {
+    fn from(error: WorldLoadError) -> Self {
+        error.to_string()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tile {
     pub tile_id: i32,
@@ -113,27 +149,76 @@ impl WorldLoader {
 
 impl WorldLoader {
     fn parse_world(&self, data: Vec<u8>) -> Result<World, String> {
-        let mut stream = DataStream::new(data);
-
-        // 读取文件格式头
-        let _positions = self.read_file_format_header(&mut stream)?;
-
-        // 读取世界头
-        let (width, height, world_id, name) = self.read_header(&mut stream)?;
-
-        web_sys::console::log_1(&format!("Reading tile data: {} x {} = {} tiles", width, height, width * height).into());
-        web_sys::console::log_1(&format!("Current stream position: {}", stream.position()).into());
-
-        // 读取方块数据
-        let mut tiles = Vec::with_capacity((width * height) as usize);
-        for i in 0..(width * height) {
-            if i % 1000000 == 0 {
-                web_sys::console::log_1(&format!("Reading tile {} / {}", i, width * height).into());
-            }
-            tiles.push(self.read_tile(&mut stream));
+        // 验证数据不为空
+        if data.is_empty() {
+            return Err(WorldLoadError::InvalidData {
+                message: "World file is empty".to_string(),
+            }.into());
         }
 
-        web_sys::console::log_1(&format!("Finished reading {} tiles", tiles.len()).into());
+        let mut stream = DataStream::new(data);
+        let _initial_position = stream.position();
+
+        // 读取文件格式头
+        let _positions = self.read_file_format_header(&mut stream).map_err(|e| {
+            format!("Failed to read file format header: {}", e)
+        })?;
+
+        // 读取世界头
+        let (width, height, world_id, name) = self.read_header(&mut stream).map_err(|e| {
+            format!("Failed to read world header: {}", e)
+        })?;
+
+        // 验证世界尺寸
+        if width <= 0 || height <= 0 {
+            return Err(WorldLoadError::InvalidData {
+                message: format!("Invalid world dimensions: {} x {}", width, height),
+            }.into());
+        }
+
+        if width > 10000 || height > 10000 {
+            return Err(WorldLoadError::InvalidData {
+                message: format!("World dimensions too large: {} x {}", width, height),
+            }.into());
+        }
+
+        // 验证数据长度是否足够
+        let expected_tile_count = (width * height) as usize;
+        let remaining_bytes = stream.len() - stream.position();
+        let estimated_tile_size = 8; // 估算每个方块的平均大小（字节）
+        let expected_min_bytes = expected_tile_count * estimated_tile_size;
+
+        if remaining_bytes < expected_min_bytes {
+            return Err(WorldLoadError::CorruptedData {
+                position: stream.position(),
+                message: format!(
+                    "Insufficient data for tiles: expected at least {} bytes, found {} bytes",
+                    expected_min_bytes, remaining_bytes
+                ),
+            }.into());
+        }
+
+        // 读取方块数据
+        let mut tiles = Vec::with_capacity(expected_tile_count);
+        for i in 0..(width * height) {
+            let tile_pos = stream.position();
+            tiles.push(self.read_tile(&mut stream));
+            
+            // 定期检查是否有足够数据
+            if i % 1000000 == 0 {
+                let remaining = stream.len() - stream.position();
+                let tiles_remaining = (width * height - i) as usize;
+                if remaining < tiles_remaining {
+                    return Err(WorldLoadError::CorruptedData {
+                        position: tile_pos,
+                        message: format!(
+                            "Unexpected end of data while reading tiles: {} tiles remaining but only {} bytes left",
+                            tiles_remaining, remaining
+                        ),
+                    }.into());
+                }
+            }
+        }
 
         // 读取其他数据（简化版）
         let chests: Vec<Chest> = Vec::new();
@@ -141,11 +226,16 @@ impl WorldLoader {
         let signs: Vec<Sign> = Vec::new();
         let tile_entities: Vec<TileEntity> = Vec::new();
 
-        // 读取其他数据（简化版）
-        let chests = Vec::new();
-        let npcs = Vec::new();
-        let signs = Vec::new();
-        let tile_entities = Vec::new();
+        // 验证读取的方块数量
+        if tiles.len() != expected_tile_count {
+            return Err(WorldLoadError::CorruptedData {
+                position: stream.position(),
+                message: format!(
+                    "Tile count mismatch: expected {}, found {}",
+                    expected_tile_count, tiles.len()
+                ),
+            }.into());
+        }
 
         Ok(World {
             name,
@@ -162,27 +252,22 @@ impl WorldLoader {
 
     fn read_file_format_header(&self, stream: &mut DataStream) -> Result<Vec<i32>, String> {
         // 读取版本号
-        let version = stream.read_int32();
-        web_sys::console::log_1(&format!("File format version: {}", version).into());
+        let _version = stream.read_int32();
 
         // read file metadata
         // TODO: implement read_uint64()
-        let meta1 = stream.read_uint32();
-        let meta2 = stream.read_uint32();
-        web_sys::console::log_1(&format!("Metadata: {} {}", meta1, meta2).into());
+        let _meta1 = stream.read_uint32();
+        let _meta2 = stream.read_uint32();
 
         // revision
-        let revision = stream.read_uint32();
-        web_sys::console::log_1(&format!("Revision: {}", revision).into());
+        let _revision = stream.read_uint32();
 
         // isFavorite
-        let fav1 = stream.read_uint32();
-        let fav2 = stream.read_uint32();
-        web_sys::console::log_1(&format!("IsFavorite: {} {}", fav1, fav2).into());
+        let _fav1 = stream.read_uint32();
+        let _fav2 = stream.read_uint32();
 
         // read positions
         let positions_length = stream.read_int16();
-        web_sys::console::log_1(&format!("Positions length: {}", positions_length).into());
         let mut positions = Vec::with_capacity(positions_length as usize);
         for _ in 0..positions_length {
             positions.push(stream.read_int32());
@@ -190,14 +275,13 @@ impl WorldLoader {
 
         // read importance
         let importance_length = stream.read_int16();
-        web_sys::console::log_1(&format!("Importance length: {}", importance_length).into());
 
         // 重要性位图处理：每 7 个重要性位存储在一个字节中
-        let mut b = 0u8;
+        let mut _b = 0u8;
         let mut b2 = 128u8;
         for _ in 0..importance_length {
             if b2 == 128 {
-                b = stream.read_byte();
+                _b = stream.read_byte();
                 b2 = 1;
             } else {
                 b2 = b2 << 1;
@@ -205,56 +289,43 @@ impl WorldLoader {
             // 不存储重要性值，只读取
         }
 
-        web_sys::console::log_1(&format!("Stream position after file format header: {}", stream.position()).into());
-
         Ok(positions)
     }
 
     fn read_header(&self, stream: &mut DataStream) -> Result<(i32, i32, i32, String), String> {
-        web_sys::console::log_1(&format!("Starting read_header at position: {}", stream.position()).into());
-
-        // name
+// name
         let name = stream.read_string();
-        web_sys::console::log_1(&format!("World name: '{}'", name).into());
 
         // seed
-        let seed = stream.read_string();
-        web_sys::console::log_1(&format!("Seed: '{}'", seed).into());
+        let _seed = stream.read_string();
 
         // worldGeneratorVersion
-        let ver1 = stream.read_uint32();
-        let ver2 = stream.read_uint32();
-        web_sys::console::log_1(&format!("Generator version: {} {}", ver1, ver2).into());
+        let _ver1 = stream.read_uint32();
+        let _ver2 = stream.read_uint32();
 
         // UUID (16 bytes)
-        let mut uuid = Vec::new();
+        let mut _uuid = Vec::new();
         for _ in 0..16 {
-            uuid.push(stream.read_byte());
+            _uuid.push(stream.read_byte());
         }
-        web_sys::console::log_1(&format!("UUID: {:02x?}", uuid).into());
 
         // id
         let world_id = stream.read_int32();
-        web_sys::console::log_1(&format!("World id: {}", world_id).into());
 
         // bounds
-        let left = stream.read_int32();
-        let right = stream.read_int32();
-        let top = stream.read_int32();
-        let bottom = stream.read_int32();
-        web_sys::console::log_1(&format!("Bounds: left={} right={} top={} bottom={}", left, right, top, bottom).into());
+        let _left = stream.read_int32();
+        let _right = stream.read_int32();
+        let _top = stream.read_int32();
+        let _bottom = stream.read_int32();
 
         // height
         let height = stream.read_int32();
-        web_sys::console::log_1(&format!("World height: {}", height).into());
 
         // width
         let width = stream.read_int32();
-        web_sys::console::log_1(&format!("World width: {}", width).into());
 
         // gameMode (version >= 209)
-        let game_mode = stream.read_int32();
-        web_sys::console::log_1(&format!("Game mode: {}", game_mode).into());
+        let _game_mode = stream.read_int32();
 
         Ok((width, height, world_id, name))
     }

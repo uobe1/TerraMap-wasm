@@ -110,15 +110,11 @@ impl DataStream {
             step += 1;
         }
 
-        web_sys::console::log_1(&format!("read_string: bytes={:02x?}, length={}", bytes_read, string_length).into());
-
         if string_length == 0 {
             return String::new();
         }
 
         let bytes = self.read_bytes(string_length as usize);
-        web_sys::console::log_1(&format!("read_string: data={:02x?}", &bytes[..bytes.len().min(20)]).into());
-
         String::from_utf8_lossy(&bytes).to_string()
     }
 

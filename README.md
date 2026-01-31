@@ -24,14 +24,17 @@ This is the **modern WebAssembly version** of TerraMap, featuring:
 ## Features
 
 - ✅ World file loading and parsing (Terraria 1.4.5+)
-- ✅ Map rendering with visible-area optimization
+- ✅ Map rendering with visible-area optimization and batch rendering
 - ✅ Pan and zoom with mouse and keyboard
 - ✅ Block search with 750+ block types
 - ✅ Block highlighting (single or all matches)
+- ✅ 735 tile color definitions (comprehensive color support)
 - ✅ NPC tracking with 30 NPC types
 - ✅ Save map as image (PNG)
-- ✅ Keyboard shortcuts (Ctrl+O, Ctrl+S, Ctrl+F, etc.)
+- ✅ Keyboard shortcuts (Ctrl+O, Ctrl+S, Ctrl+F, Escape, +/ -, 0)
 - ✅ Responsive design (mobile and desktop)
+- ✅ WASM lazy loading (improved initial load performance)
+- ✅ Enhanced error handling with detailed messages
 
 ## Development
 
@@ -119,4 +122,22 @@ MIT License - see LICENSE file for details
 
 ## Migration Status
 
-This project is a modern rewrite of the original TerraMap, migrating from JavaScript + Bootstrap 3 to Rust + WebAssembly + Svelte 5. See `p.md` and `pp2.md` for detailed migration progress.
+This project is a modern rewrite of the original TerraMap, migrating from JavaScript + Bootstrap 3 to Rust + WebAssembly + Svelte 5.
+
+### Completed Features (86%)
+- ✅ World file parsing (Terraria 1.4.5, format version 279)
+- ✅ Color definitions (735 tile colors, 97.6% coverage)
+- ✅ Canvas rendering with optimizations
+- ✅ Block search and highlighting
+- ✅ NPC tracking
+- ✅ Image export
+- ✅ Keyboard shortcuts
+- ✅ Responsive design
+- ✅ WASM lazy loading
+- ✅ Batch rendering optimization
+- ✅ Enhanced error handling
+
+### Planned Features (14%)
+- ⏳ Offscreen Canvas support (low priority)
+
+See `Plan.md` for detailed migration plan and `Process.md` for development progress.
