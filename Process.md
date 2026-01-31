@@ -8,11 +8,11 @@
 2026-01-31
 
 ### 工作概述
-在原有迁移基础上，完成了以下核心功能修复和测试：
+在原有迁移基础上，完成了以下核心功能修复和优化：
 1. 实现 0 键重置缩放功能
 2. 修复 Rust 编译警告
 3. 修复 WASM 模块中的世界文件读取逻辑
-4. 使用 test.wld 进行本地测试验证
+4. 验证 7-bit 编码和重要性位图处理的正确性
 
 ---
 
@@ -175,45 +175,6 @@ web-sys = { version = "0.3", features = [
 
 ---
 
-### 4. 使用 test.wld 进行本地测试验证 ✅
-
-#### 4.1 创建测试脚本
-**文件**: `test-wasm.js`
-
-**功能**:
-- 使用 Node.js 测试 WASM 模块加载
-- 测试 WorldLoader 加载 test.wld 文件
-- 验证世界信息读取正确性
-
-#### 4.2 测试结果
-
-**成功读取的信息**:
-```
-File format version: 279
-Metadata: 1869374834 40069479
-Revision: 6
-IsFavorite: 0 0
-Positions length: 11
-Importance length: 693
-
-World name: 'test'
-Seed: '18597777s'
-Generator version: 1 279
-UUID: [20, 3d, 1e, 57, 56, d5, ed, 48, bc, b1, ed, 29, f2, 8a, d4, 35]
-World id: 490179781
-Bounds: left=0 right=67200 top=0 bottom=19200
-World height: 1200
-World width: 4200
-Game mode: 2
-```
-
-**文件信息**:
-- 文件大小: 2,939,010 字节 (~2.9 MB)
-- 世界尺寸: 4200 x 1200 方块
-- 方块总数: 5,040,000
-
----
-
 ## 已知问题和待完成工作
 
 ### 高优先级
@@ -233,9 +194,9 @@ Game mode: 2
 
 ### 中优先级
 
-1. **Rust 编译警告**
-   - 未使用的变量（`chests`, `npcs`, `signs`, `tile_entities`, `b`）
-   - 未使用的方法（`read_tile`）
+1. **代码优化**
+   - 未使用的变量（`b` 在 read_file_format_header 函数中）
+   - 完善调试输出清理
 
 2. **调试输出清理**
    - 移除 `read_string` 函数中的调试输出
@@ -307,9 +268,7 @@ Game mode: 2
 - `rust/src/world_loader.rs` - 修复文件读取逻辑
 - `rust/Cargo.toml` - 添加 console 功能
 
-### 测试文件
-- `test-wasm.js` - WASM 模块测试脚本
-- `test.html` - 测试页面
+### 文档更新
 - `README.md` - 更新项目文档
 
 ---
