@@ -5,7 +5,7 @@
   import BlockSelector from './components/BlockSelector.svelte';
   import NPCTracker from './components/NPCTracker.svelte';
   import InfoPanel from './components/InfoPanel.svelte';
-  import { highlightStore, npcStore } from './lib/stores';
+  import { highlightStore, npcStore, viewStore } from './lib/stores';
 
   onMount(() => {
     // 初始化 WASM 模块
@@ -90,7 +90,14 @@
     // 数字键 0: 重置缩放
     if (e.key === '0') {
       e.preventDefault();
-      // TODO: 实现重置缩放功能
+      viewStore.resetZoom();
+      // 更新 renderer 的缩放
+      const canvas = document.querySelector('.map-canvas') as HTMLCanvasElement;
+      if (canvas) {
+        // 触发重新渲染
+        const event = new Event('resize');
+        window.dispatchEvent(event);
+      }
     }
   }
 </script>

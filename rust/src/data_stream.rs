@@ -94,8 +94,31 @@ impl DataStream {
     }
 
     pub fn read_string(&mut self) -> String {
-        let length = self.read_uint32() as usize;
-        let bytes = self.read_bytes(length);
+        let mut string_length = 0u32;
+        let mut string_length_parsed = false;
+        let mut step = 0u32;
+
+        let mut bytes_read = Vec::new();
+
+        while !string_length_parsed {
+            let part = self.read_byte();
+            bytes_read.push(part);
+            string_length_parsed = (part >> 7) == 0;
+            let part_cutter = part & 0x7F;
+            let to_add = (part_cutter as u32) << (step * 7);
+            string_length += to_add;
+            step += 1;
+        }
+
+        web_sys::console::log_1(&format!("read_string: bytes={:02x?}, length={}", bytes_read, string_length).into());
+
+        if string_length == 0 {
+            return String::new();
+        }
+
+        let bytes = self.read_bytes(string_length as usize);
+        web_sys::console::log_1(&format!("read_string: data={:02x?}", &bytes[..bytes.len().min(20)]).into());
+
         String::from_utf8_lossy(&bytes).to_string()
     }
 

@@ -4,7 +4,6 @@
 use wasm_bindgen::prelude::*;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 use crate::world_loader::{World, Tile};
-use crate::colors::Rgb;
 
 pub struct Renderer {
     ctx: CanvasRenderingContext2d,

@@ -1,6 +1,41 @@
 import { writable } from 'svelte/store';
 import type { World } from './types';
 
+// 视图状态 store（缩放和平移）
+const viewStoreInternal = writable<{
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+}>({
+  scale: 1,
+  offsetX: 0,
+  offsetY: 0,
+});
+
+export const viewStore = {
+  subscribe: viewStoreInternal.subscribe,
+  setScale: (scale: number) => {
+    viewStoreInternal.update((state) => ({
+      ...state,
+      scale,
+    }));
+  },
+  setOffset: (offsetX: number, offsetY: number) => {
+    viewStoreInternal.update((state) => ({
+      ...state,
+      offsetX,
+      offsetY,
+    }));
+  },
+  resetZoom: () => {
+    viewStoreInternal.set({
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    });
+  },
+};
+
 // 世界数据 store
 const worldStoreInternal = writable<{
   world: World | null;

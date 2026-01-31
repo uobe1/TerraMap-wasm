@@ -1,13 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { worldStore, highlightStore, npcStore } from '../lib/stores';
+  import { worldStore, highlightStore, npcStore, viewStore } from '../lib/stores';
 
   let canvasElement: HTMLCanvasElement;
   let wasmModule: any = null;
   let renderer: any = null;
-  let scale = 1;
-  let offsetX = 0;
-  let offsetY = 0;
   let isDragging = false;
   let lastX = 0;
   let lastY = 0;
@@ -33,10 +30,10 @@
   function handleWheel(e: WheelEvent) {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(0.1, Math.min(10, scale * delta));
-    scale = newScale;
+    const newScale = Math.max(0.1, Math.min(10, $viewStore.scale * delta));
+    viewStore.setScale(newScale);
     if (renderer) {
-      renderer.set_scale(scale);
+      renderer.set_scale(newScale);
     }
     render();
   }
@@ -51,8 +48,7 @@
     if (!isDragging) return;
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
-    offsetX += dx;
-    offsetY += dy;
+    viewStore.setOffset($viewStore.offsetX + dx, $viewStore.offsetY + dy);
     lastX = e.clientX;
     lastY = e.clientY;
     render();
@@ -71,8 +67,8 @@
     // 清空画布
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scale, scale);
+    ctx.translate($viewStore.offsetX, $viewStore.offsetY);
+    ctx.scale($viewStore.scale, $viewStore.scale);
 
     // 渲染世界
     if ($worldStore.world) {
@@ -80,10 +76,10 @@
         const worldJs = $worldStore.world;
 
         // 计算可见区域
-        const canvasWidth = canvasElement.width / scale;
-        const canvasHeight = canvasElement.height / scale;
-        const startX = Math.floor(-offsetX / scale);
-        const startY = Math.floor(-offsetY / scale);
+        const canvasWidth = canvasElement.width / $viewStore.scale;
+        const canvasHeight = canvasElement.height / $viewStore.scale;
+        const startX = Math.floor(-$viewStore.offsetX / $viewStore.scale);
+        const startY = Math.floor(-$viewStore.offsetY / $viewStore.scale);
         const visibleArea = [startX, startY, Math.ceil(canvasWidth), Math.ceil(canvasHeight)];
 
         // 如果有高亮位置，使用高亮渲染
@@ -110,7 +106,7 @@
 
           // 绘制 NPC 位置标记（红色圆圈）
           ctx.strokeStyle = '#ff0000';
-          ctx.lineWidth = 2 / scale;
+          ctx.lineWidth = 2 / $viewStore.scale;
           ctx.beginPath();
           ctx.arc(x + 0.5, y + 0.5, 1.5, 0, Math.PI * 2);
           ctx.stroke();
@@ -156,6 +152,12 @@
 
   // 响应式更新
   $: if ($worldStore.world || $highlightStore.foundPositions.length > 0 || $npcStore.npcPosition) {
+    render();
+  }
+
+  // 同步 renderer 的缩放状态
+  $: if (renderer && $viewStore.scale !== renderer.get_scale()) {
+    renderer.set_scale($viewStore.scale);
     render();
   }
 </script>

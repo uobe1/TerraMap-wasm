@@ -25,15 +25,11 @@ async function testWasmModule() {
     console.log('Loading WASM module...');
     const wasm = await import('./pkg/terra_map_wasm.js');
 
-    // Manually load WASM file
+    // Load WASM file using initSync for Node.js environment
     const wasmFilePath = path.join(__dirname, 'pkg', 'terra_map_wasm_bg.wasm');
     const wasmBuffer = fs.readFileSync(wasmFilePath);
-    const wasmModule = await WebAssembly.compile(wasmBuffer);
+    wasm.initSync(wasmBuffer);
 
-    // Initialize WASM module
-    await wasm.default({
-      module: wasmModule
-    });
     console.log('WASM module loaded successfully');
     console.log('Available exports:', Object.keys(wasm));
 
@@ -44,10 +40,22 @@ async function testWasmModule() {
 
     console.log('World loaded successfully!');
     console.log('World name:', world.name);
+    console.log('World id:', world.world_id);
     console.log('World dimensions:', world.width, 'x', world.height);
     console.log('Number of tiles:', world.tiles.length);
     console.log('Number of chests:', world.chests.length);
     console.log('Number of NPCs:', world.npcs.length);
+
+    // 检查是否有任何数据
+    if (world.width === 0 || world.height === 0) {
+      console.warn('Warning: World dimensions are zero!');
+    }
+    if (world.tiles.length === 0) {
+      console.warn('Warning: No tiles loaded!');
+    }
+    if (!world.name) {
+      console.warn('Warning: World name is empty!');
+    }
 
     // Test Searcher
     console.log('\nTesting Searcher...');

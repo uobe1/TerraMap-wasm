@@ -115,19 +115,31 @@ impl WorldLoader {
     fn parse_world(&self, data: Vec<u8>) -> Result<World, String> {
         let mut stream = DataStream::new(data);
 
-        // 读取文件头
-        self.read_header(&mut stream)?;
+        // 读取文件格式头
+        let _positions = self.read_file_format_header(&mut stream)?;
+
+        // 读取世界头
+        let (width, height, world_id, name) = self.read_header(&mut stream)?;
+
+        web_sys::console::log_1(&format!("Reading tile data: {} x {} = {} tiles", width, height, width * height).into());
+        web_sys::console::log_1(&format!("Current stream position: {}", stream.position()).into());
 
         // 读取方块数据
-        let width = stream.read_int32();
-        let height = stream.read_int32();
-        let world_id = stream.read_int32();
-        let name = stream.read_string();
-
         let mut tiles = Vec::with_capacity((width * height) as usize);
-        for _ in 0..(width * height) {
+        for i in 0..(width * height) {
+            if i % 1000000 == 0 {
+                web_sys::console::log_1(&format!("Reading tile {} / {}", i, width * height).into());
+            }
             tiles.push(self.read_tile(&mut stream));
         }
+
+        web_sys::console::log_1(&format!("Finished reading {} tiles", tiles.len()).into());
+
+        // 读取其他数据（简化版）
+        let chests: Vec<Chest> = Vec::new();
+        let npcs: Vec<NPC> = Vec::new();
+        let signs: Vec<Sign> = Vec::new();
+        let tile_entities: Vec<TileEntity> = Vec::new();
 
         // 读取其他数据（简化版）
         let chests = Vec::new();
@@ -148,19 +160,103 @@ impl WorldLoader {
         })
     }
 
-    fn read_header(&self, stream: &mut DataStream) -> Result<(), String> {
-        // 读取版本号和元数据
+    fn read_file_format_header(&self, stream: &mut DataStream) -> Result<Vec<i32>, String> {
+        // 读取版本号
         let version = stream.read_int32();
-        let file_type = stream.read_string();
+        web_sys::console::log_1(&format!("File format version: {}", version).into());
 
-        if file_type != "terraria" {
-            return Err("Invalid world file format".to_string());
+        // read file metadata
+        // TODO: implement read_uint64()
+        let meta1 = stream.read_uint32();
+        let meta2 = stream.read_uint32();
+        web_sys::console::log_1(&format!("Metadata: {} {}", meta1, meta2).into());
+
+        // revision
+        let revision = stream.read_uint32();
+        web_sys::console::log_1(&format!("Revision: {}", revision).into());
+
+        // isFavorite
+        let fav1 = stream.read_uint32();
+        let fav2 = stream.read_uint32();
+        web_sys::console::log_1(&format!("IsFavorite: {} {}", fav1, fav2).into());
+
+        // read positions
+        let positions_length = stream.read_int16();
+        web_sys::console::log_1(&format!("Positions length: {}", positions_length).into());
+        let mut positions = Vec::with_capacity(positions_length as usize);
+        for _ in 0..positions_length {
+            positions.push(stream.read_int32());
         }
 
-        // 读取更多元数据
-        stream.skip(8); // 跳过 revision
+        // read importance
+        let importance_length = stream.read_int16();
+        web_sys::console::log_1(&format!("Importance length: {}", importance_length).into());
 
-        Ok(())
+        // 重要性位图处理：每 7 个重要性位存储在一个字节中
+        let mut b = 0u8;
+        let mut b2 = 128u8;
+        for _ in 0..importance_length {
+            if b2 == 128 {
+                b = stream.read_byte();
+                b2 = 1;
+            } else {
+                b2 = b2 << 1;
+            }
+            // 不存储重要性值，只读取
+        }
+
+        web_sys::console::log_1(&format!("Stream position after file format header: {}", stream.position()).into());
+
+        Ok(positions)
+    }
+
+    fn read_header(&self, stream: &mut DataStream) -> Result<(i32, i32, i32, String), String> {
+        web_sys::console::log_1(&format!("Starting read_header at position: {}", stream.position()).into());
+
+        // name
+        let name = stream.read_string();
+        web_sys::console::log_1(&format!("World name: '{}'", name).into());
+
+        // seed
+        let seed = stream.read_string();
+        web_sys::console::log_1(&format!("Seed: '{}'", seed).into());
+
+        // worldGeneratorVersion
+        let ver1 = stream.read_uint32();
+        let ver2 = stream.read_uint32();
+        web_sys::console::log_1(&format!("Generator version: {} {}", ver1, ver2).into());
+
+        // UUID (16 bytes)
+        let mut uuid = Vec::new();
+        for _ in 0..16 {
+            uuid.push(stream.read_byte());
+        }
+        web_sys::console::log_1(&format!("UUID: {:02x?}", uuid).into());
+
+        // id
+        let world_id = stream.read_int32();
+        web_sys::console::log_1(&format!("World id: {}", world_id).into());
+
+        // bounds
+        let left = stream.read_int32();
+        let right = stream.read_int32();
+        let top = stream.read_int32();
+        let bottom = stream.read_int32();
+        web_sys::console::log_1(&format!("Bounds: left={} right={} top={} bottom={}", left, right, top, bottom).into());
+
+        // height
+        let height = stream.read_int32();
+        web_sys::console::log_1(&format!("World height: {}", height).into());
+
+        // width
+        let width = stream.read_int32();
+        web_sys::console::log_1(&format!("World width: {}", width).into());
+
+        // gameMode (version >= 209)
+        let game_mode = stream.read_int32();
+        web_sys::console::log_1(&format!("Game mode: {}", game_mode).into());
+
+        Ok((width, height, world_id, name))
     }
 
     fn read_tile(&self, stream: &mut DataStream) -> Tile {
